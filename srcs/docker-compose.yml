@@ -1,0 +1,79 @@
+services:
+  mariadb:
+    env_file: .env
+    build:
+      context: ./requirements/mariadb
+    image: mariadb
+    networks:
+      - mariadb_wordpress_net
+    volumes:
+      - /home/sihong/data/mariadb_vol:/var/lib/mysql
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+  wordpress:
+    env_file: .env
+    build:
+      context: ./requirements/wordpress
+    image: wordpress
+    networks:
+      - mariadb_wordpress_net
+      - wordpress_nginx_net
+      - wordpress_vsftpd_net
+    volumes:
+      - /home/sihong/data/wordpress_vol:/var/www/html/
+    restart: always
+    healthcheck:
+      test: ["CMD", "/usr/sbin/php-fpm8.2", "-t"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      mariadb:
+        condition: service_healthy
+  nginx:
+    env_file: .env
+    build:
+      context: ./requirements/nginx
+    image: nginx
+    networks:
+      - wordpress_nginx_net
+    volumes:
+      - /home/sihong/data/wordpress_vol:/var/www/html/
+    restart: always
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    ports:
+      - 443:443/tcp
+      - 4422:4422/tcp
+  vsftpd:
+    env_file: .env
+    build:
+      context: ./requirements/bonus/vsftpd
+    image: vsftpd
+    networks:
+      - wordpress_vsftpd_net
+    volumes:
+      - /home/sihong/data/wordpress_vol:/var/www/html/
+    restart: always
+    depends_on:
+      wordpress:
+        condition: service_healthy
+  netdata:
+    env_file: .env
+    build:
+      context: ./requirements/bonus/netdata
+    image: netdata
+    network_mode: host
+    restart: always
+networks:
+  mariadb_wordpress_net:
+    driver: bridge
+  wordpress_nginx_net:
+    driver: bridge
+  wordpress_vsftpd_net:
+    driver: bridge
